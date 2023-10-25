@@ -1,7 +1,16 @@
 from typing import Dict, Any, List
+from google.cloud import firestore
+from datetime import datetime
+from contextlib import contextmanager
+from unittest import mock
 
 from mockfirestore._helpers import get_document_iterator, get_by_path, set_by_path, delete_by_path
 
+@contextmanager
+def mock_firestore_server_timestamp(now: datetime):
+    with mock.patch(f'{__name__}.datetime') as mock_mod_datetime:
+        mock_mod_datetime.now = mock.Mock(return_value = now)
+        yield None
 
 def apply_transformations(document: Dict[str, Any], data: Dict[str, Any]):
     """Handles special fields like INCREMENT."""
@@ -9,33 +18,22 @@ def apply_transformations(document: Dict[str, Any], data: Dict[str, Any]):
     arr_unions = {}
     arr_deletes = {}
     deletes = []
+    timestamps = []
 
     for key, value in list(get_document_iterator(data)):
-        if not value.__class__.__module__.startswith('google.cloud.firestore'):
-            # Unfortunately, we can't use `isinstance` here because that would require
-            # us to declare google-cloud-firestore as a dependency for this library.
-            # However, it's somewhat strange that the mocked version of the library
-            # requires the library itself, so we'll just leverage this heuristic as a
-            # means of identifying it.
-            #
-            # Furthermore, we don't hardcode the full module name, since the original
-            # library seems to use a thin shim to perform versioning. e.g. at the time
-            # of writing, the full module name is `google.cloud.firestore_v1.transforms`,
-            # and it can evolve to `firestore_v2` in the future.
-            continue
-
-        transformer = value.__class__.__name__
-        if transformer == 'Increment':
+        if isinstance(value, firestore.Increment):
             increments[key] = value.value
-        elif transformer == 'ArrayUnion':
+        elif isinstance(value, firestore.ArrayUnion):
             arr_unions[key] = value.values
-        elif transformer == 'ArrayRemove':
+        elif isinstance(value, firestore.ArrayRemove):
             arr_deletes[key] = value.values
             del data[key]
-        elif transformer == 'Sentinel':
-            if value.description == "Value used to delete a field in a document.":
-                deletes.append(key)
-                del data[key]
+        elif isinstance(value, type(firestore.DELETE_FIELD)) and str(value) == str(firestore.DELETE_FIELD):
+            deletes.append(key)
+            del data[key]
+        elif isinstance(value, type(firestore.SERVER_TIMESTAMP)) and str(value) == str(firestore.SERVER_TIMESTAMP):
+            timestamps.append(key)
+            del data[key]
 
         # All other transformations can be applied as needed.
         # See #29 for tracking.
@@ -51,8 +49,14 @@ def apply_transformations(document: Dict[str, Any], data: Dict[str, Any]):
 
             set_by_path(data, path, item + value, create_nested=True)
 
+    def _update_data_to(keys: list[str], value: Any):
+        for key in keys:
+            path = key.split(".")
+            set_by_path(data, path, value, create_nested=True)
+
     _update_data(increments, 0)
     _update_data(arr_unions, [])
+    _update_data_to(timestamps, datetime.now().isoformat())
 
     _apply_updates(document, data)
     _apply_deletes(document, deletes)

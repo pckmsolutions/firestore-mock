@@ -70,17 +70,16 @@ class DocumentReference:
         delete_by_path(self._data, self._path)
 
     def set(self, data: Dict, merge=False):
-        if merge:
-            try:
-                self.update(deepcopy(data))
-            except NotFound:
-                self.set(data)
-        else:
-            set_by_path(self._data, self._path, deepcopy(data))
+        if not merge:
+            set_by_path(self._data, self._path, {})
+        self._update(deepcopy(data), ignore_empty = True)
 
     def update(self, data: Dict[str, Any]):
+        self._update(data)
+
+    def _update(self, data: Dict[str, Any], ignore_empty: bool = False):
         document = get_by_path(self._data, self._path)
-        if document == {}:
+        if not ignore_empty and document == {}:
             raise NotFound('No document to update: {}'.format(self._path))
 
         apply_transformations(document, deepcopy(data))
