@@ -27,13 +27,13 @@ def apply_transformations(document: Dict[str, Any], data: Dict[str, Any]):
             arr_unions[key] = value.values
         elif isinstance(value, firestore.ArrayRemove):
             arr_deletes[key] = value.values
-            del data[key]
+            delete_by_path(data, key.split('.'))
         elif isinstance(value, type(firestore.DELETE_FIELD)) and str(value) == str(firestore.DELETE_FIELD):
             deletes.append(key)
-            del data[key]
+            delete_by_path(data, key.split('.'))
         elif isinstance(value, type(firestore.SERVER_TIMESTAMP)) and str(value) == str(firestore.SERVER_TIMESTAMP):
             timestamps.append(key)
-            del data[key]
+            delete_by_path(data, key.split('.'))
 
         # All other transformations can be applied as needed.
         # See #29 for tracking.
