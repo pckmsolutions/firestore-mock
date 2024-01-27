@@ -1,5 +1,5 @@
 from mockfirestore.client import MockFirestore
-from typing import AsyncIterator
+from typing import AsyncIterator, Any
 from google.cloud import firestore
 import inspect
 from mockfirestore.document import DocumentReference, DocumentSnapshot
@@ -37,9 +37,24 @@ class AsyncDocumentReference:
             return DocumentSnapshot(self, get_by_path(document_reference._data, document_reference._path))
         setattr(self, 'get', get_wrapper)
 
+class Batch:
+    def __init__(self):
+        self.ops = []
+
+    def set(self, ref: AsyncDocumentReference, data: dict[str, Any]):
+        self.ops.append(('set', ref, data))
+
+    async def commit(self):
+        for op_meth, op_p1, op_p2 in self.ops:
+            if op_meth == 'set':
+                await op_p1.set(op_p2)
+
 class AsyncMockFirestore(MockFirestore):
     def collection(self, path: str) -> AsyncCollectionReference:
         return AsyncCollectionReference(super().collection(path))
+
+    def batch(self):
+        return Batch()
 
 def _async_proxy_methods(
         source,

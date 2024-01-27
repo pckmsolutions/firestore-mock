@@ -59,4 +59,3 @@ class MockFirestore:
     def transaction(self, **kwargs) -> Transaction:
         return Transaction(self, **kwargs)
 
-
