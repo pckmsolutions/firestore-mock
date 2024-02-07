@@ -1,5 +1,5 @@
 from mockfirestore.client import MockFirestore
-from typing import AsyncIterator, Any
+from typing import AsyncIterator, Any, Iterable
 from google.cloud import firestore
 import inspect
 from mockfirestore.document import DocumentReference, DocumentSnapshot
@@ -16,9 +16,14 @@ class AsyncCollectionReference:
                     'document': (AsyncDocumentReference,False),
                     'order_by': (AsyncCollectionReference,False),
                     'limit': (AsyncCollectionReference,False),
+                    'where': (AsyncCollectionReference,False),
                     'start_after': (AsyncCollectionReference,False),
                     }
                 )
+        async def stream_wrapper(*args, **kwargs) -> Iterable[DocumentSnapshot]:
+            for doc in collection_reference.stream():
+                yield await AsyncDocumentReference(doc.reference).get()
+        setattr(self, 'stream', stream_wrapper)
 
 class AsyncDocumentReference:
     def __init__(self, document_reference: DocumentReference):
