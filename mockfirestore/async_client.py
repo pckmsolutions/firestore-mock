@@ -16,6 +16,7 @@ class AsyncCollectionReference:
                     'document': (AsyncDocumentReference,False),
                     'order_by': (AsyncCollectionReference,False),
                     'limit': (AsyncCollectionReference,False),
+                    'where': (AsyncCollectionReference,False),
                     'start_after': (AsyncCollectionReference,False),
                     }
                 )
